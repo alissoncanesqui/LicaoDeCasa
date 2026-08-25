@@ -1,0 +1,1 @@
+ALTER TABLE public.inscricoes ADD COLUMN IF NOT EXISTS funcao text;
