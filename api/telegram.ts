@@ -2,9 +2,9 @@ import { createClient } from "@supabase/supabase-js";
 
 export default async function handler(req: any, res: any) {
   try {
-    // 1. Conecta direto no banco de dados
-    const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
-    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || "";
+    // 1. Conecta no banco de dados (Já deixei a solda de segurança aqui também)
+    const supabaseUrl = process.env.VITE_SUPABASE_URL || "https://switudaszwnbmgpbhamd.supabase.co";
+    const supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN3aXR1ZGFzenduYm1ncGJoYW1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc2Nzk5MDUsImV4cCI6MjEwMzI1NTkwNX0.yodx01zOqwhdRCog-msV6YRGvz3bReAdPjY_W7Nfk9Q";
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 2. Relógio e Fuso Horário
@@ -43,19 +43,47 @@ export default async function handler(req: any, res: any) {
       }
     }
 
-    // 5. Monta o Alerta (Andon)
+    // 5. Monta o Alerta de Tarefas (Agrupado e Formatado)
     let textoTarefas = "";
-    if (tarefas && tarefas.length > 0) {
-      textoTarefas += "🚨 *SISTEMA ANDON - TAREFAS:*\n";
-      tarefas.forEach(t => {
-        let aviso = "";
-        if (t.data_vencimento < hojeStr) aviso = "⚠️ *[ATRASADA]*";
-        else if (t.data_vencimento === hojeStr) aviso = "🔴 *[VENCE HOJE]*";
-        else if (t.data_vencimento === amanhaStr) aviso = "🟠 *[VENCE AMANHÃ]*";
-        else aviso = "🟡 *[FALTAM 2 DIAS]*";
+    const appLink = "https://licao-de-casa.vercel.app"; // Link direto para o painel
 
-        textoTarefas += `${aviso} ${t.aluno} - ${t.tipo}: ${t.titulo}\n`;
-      });
+    if (tarefas && tarefas.length > 0) {
+      textoTarefas += "📋 *TAREFAS PENDENTES:*\n\n";
+
+      // Filtra separando as crianças
+      const tarefasDavi = tarefas.filter((t: any) => t.aluno === "Davi" || t.aluno === "davi");
+      const tarefasPedro = tarefas.filter((t: any) => t.aluno === "Pedro" || t.aluno === "pedro");
+
+      // BLOCO DO DAVI
+      if (tarefasDavi.length > 0) {
+        textoTarefas += "👦 *DAVI*\n";
+        tarefasDavi.forEach((t: any) => {
+          let aviso = "";
+          if (t.data_vencimento < hojeStr) aviso = "⚠️ *[ATRASADA]*";
+          else if (t.data_vencimento === hojeStr) aviso = "🔴 *[VENCE HOJE]*";
+          else if (t.data_vencimento === amanhaStr) aviso = "🟠 *[VENCE AMANHÃ]*";
+          else aviso = "🟡 *[FALTAM 2 DIAS]*";
+
+          // Formatação com enter no final e link clicável
+          textoTarefas += `${aviso} ${t.tipo}: ${t.titulo}\n👉 [Concluir Tarefa](${appLink})\n\n`;
+        });
+      }
+
+      // BLOCO DO PEDRO
+      if (tarefasPedro.length > 0) {
+        textoTarefas += "👦 *PEDRO*\n";
+        tarefasPedro.forEach((t: any) => {
+          let aviso = "";
+          if (t.data_vencimento < hojeStr) aviso = "⚠️ *[ATRASADA]*";
+          else if (t.data_vencimento === hojeStr) aviso = "🔴 *[VENCE HOJE]*";
+          else if (t.data_vencimento === amanhaStr) aviso = "🟠 *[VENCE AMANHÃ]*";
+          else aviso = "🟡 *[FALTAM 2 DIAS]*";
+
+          // Formatação com enter no final e link clicável
+          textoTarefas += `${aviso} ${t.tipo}: ${t.titulo}\n👉 [Concluir Tarefa](${appLink})\n\n`;
+        });
+      }
+
     } else {
       textoTarefas += "✅ Nenhuma tarefa urgente na esteira!\n";
     }
