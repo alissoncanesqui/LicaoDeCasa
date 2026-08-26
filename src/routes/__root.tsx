@@ -79,7 +79,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Escala de Coroinhas" },
+      { title: "Tarefas Escolares" },
       {
         name: "description",
         content: "Organize a escala de coroinhas da paróquia com inscrições online.",
