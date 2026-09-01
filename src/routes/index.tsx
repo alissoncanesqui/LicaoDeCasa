@@ -13,6 +13,18 @@ export const Route = createFileRoute("/")({
 
 type Aba = "Visão Geral" | "Pedro" | "Davi" | "Rotina Fixa";
 
+const LISTA_MATERIAS = [
+  "Português",
+  "Matemática",
+  "Ciências",
+  "História",
+  "Geografia",
+  "Inglês",
+  "Artes",
+  "Bolodim",
+  "Outros",
+];
+
 function DashboardLogistica() {
   const queryClient = useQueryClient();
   const [aba, setAba] = useState<Aba>("Visão Geral");
@@ -21,13 +33,74 @@ function DashboardLogistica() {
 
   const hojeData = new Date();
   const hojeIso = hojeData.toISOString().slice(0, 10);
-  const diaSemanaAtual = hojeData.getDay(); // 0=Dom, 1=Seg, 2=Ter, 3=Qua, 4=Qui, 5=Sex, 6=Sab
+  const diaSemanaAtual = hojeData.getDay();
 
   const formTarefaVazio = { id: "", aluno: "Pedro", tipo: "Lição de Casa", titulo: "", detalhes: "", data_vencimento: hojeIso };
   const formRotinaVazio = { aluno: "Pedro", dia_semana: "1", atividade: "", mochila: "" };
   
   const [formTarefa, setFormTarefa] = useState(formTarefaVazio);
   const [formRotina, setFormRotina] = useState(formRotinaVazio);
+
+  // Estados locais para a seleção automatizada da Rotina
+  const [materiasSelecionadas, setMateriasSelecionadas] = useState<string[]>([]);
+  const [esporteSelecionado, setEsporteSelecionado] = useState<string>("Nenhum");
+
+  // --- FUNÇÃO PARA GERAR AUTOMATICAMENTE O TEXTO DA MOCHILA ---
+  const atualizarTextoRotina = (aluno: string, materias: string[], esporte: string) => {
+    // 1. Nome da atividade
+    let atvPartes = [...materias];
+    if (esporte && esporte !== "Nenhum") atvPartes.push(esporte);
+    const atividadeTexto = atvPartes.join(", ");
+
+    // 2. Montagem da frase da mochila
+    let frases: string[] = [];
+
+    if (materias.length > 0) {
+      let textoMat = "";
+      if (materias.length === 1) {
+        textoMat = materias[0];
+      } else if (materias.length === 2) {
+        textoMat = `${materias[0]} e ${materias[1]}`;
+      } else {
+        textoMat = `${materias.slice(0, -1).join(", ")} e ${materias[materias.length - 1]}`;
+      }
+      frases.push(`Hoje o ${aluno} tem que levar apostila de ${textoMat.toLowerCase()}.`);
+    }
+
+    if (esporte === "Futsal") {
+      frases.push(`Hoje o ${aluno} tem futsal também, lembre-se de levar a chuteira e uniforme do futsal.`);
+    } else if (esporte === "Judô") {
+      frases.push(`Hoje o ${aluno} tem judô também, lembre-se de levar o kimono.`);
+    } else if (esporte === "Futsal + Judô") {
+      frases.push(`Hoje o ${aluno} tem futsal e judô também, lembre-se de levar a chuteira, uniforme do futsal e o kimono.`);
+    }
+
+    setFormRotina((prev) => ({
+      ...prev,
+      aluno,
+      atividade: atividadeTexto,
+      mochila: frases.join(" "),
+    }));
+  };
+
+  const toggleMateria = (materia: string) => {
+    const novasmaterias = materiasSelecionadas.includes(materia)
+      ? materiasSelecionadas.filter((item) => item !== materia)
+      : [...materiasSelecionadas, materia];
+
+    setMateriasSelecionadas(novasmaterias);
+    atualizarTextoRotina(formRotina.aluno, novasmaterias, esporteSelecionado);
+  };
+
+  const handleEsporteChange = (esporte: string) => {
+    setEsporteSelecionado(esporte);
+    atualizarTextoRotina(formRotina.aluno, materiasSelecionadas, esporte);
+  };
+
+  const handleAlunoRotinaChange = (aluno: string) => {
+    setFormRotina((prev) => ({ ...prev, aluno }));
+    atualizarTextoRotina(aluno, materiasSelecionadas, esporteSelecionado);
+  };
 
   // --- BUSCAS NO BANCO ---
   const { data: tarefas = [], isLoading: loadT } = useQuery({
@@ -94,7 +167,7 @@ function DashboardLogistica() {
       const payload = {
         aluno: formRotina.aluno,
         dia_semana: Number(formRotina.dia_semana),
-        atividade: formRotina.atividade,
+        atividade: formRotina.atividade || "Aulas do dia",
         mochila: formRotina.mochila,
       };
       const { error } = await supabase.from("rotina_semanal").insert(payload);
@@ -104,8 +177,11 @@ function DashboardLogistica() {
       toast.success("Rotina fixa adicionada!");
       setModalRotina(false);
       setFormRotina(formRotinaVazio);
+      setMateriasSelecionadas([]);
+      setEsporteSelecionado("Nenhum");
       queryClient.invalidateQueries({ queryKey: ["rotinas"] });
     },
+    onError: (e) => toast.error(e.message),
   });
 
   const excluirRotina = useMutation({
@@ -202,17 +278,26 @@ function DashboardLogistica() {
                   <h3 className="font-bold text-lg">Nova Rotina Fixa</h3>
                   <Button type="button" variant="ghost" size="sm" onClick={() => setModalRotina(false)}>✕ Fechar</Button>
                 </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label>Aluno</Label>
-                    <select value={formRotina.aluno} onChange={(e) => setFormRotina({ ...formRotina, aluno: e.target.value })} className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
+                    <select
+                      value={formRotina.aluno}
+                      onChange={(e) => handleAlunoRotinaChange(e.target.value)}
+                      className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+                    >
                       <option value="Pedro">Pedro</option>
                       <option value="Davi">Davi</option>
                     </select>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Dia da Semana</Label>
-                    <select value={formRotina.dia_semana} onChange={(e) => setFormRotina({ ...formRotina, dia_semana: e.target.value })} className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
+                    <select
+                      value={formRotina.dia_semana}
+                      onChange={(e) => setFormRotina({ ...formRotina, dia_semana: e.target.value })}
+                      className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+                    >
                       <option value="1">Segunda-feira</option>
                       <option value="2">Terça-feira</option>
                       <option value="3">Quarta-feira</option>
@@ -221,14 +306,59 @@ function DashboardLogistica() {
                     </select>
                   </div>
                 </div>
+
+                {/* --- SELEÇÃO DE MATÉRIAS --- */}
                 <div className="space-y-1.5">
-                  <Label>Atividade / Aula</Label>
-                  <Input required placeholder="Ex: Educação Física" value={formRotina.atividade} onChange={(e) => setFormRotina({ ...formRotina, atividade: e.target.value })} />
+                  <Label>Matérias do Dia (clique para selecionar)</Label>
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {LISTA_MATERIAS.map((m) => {
+                      const selecionado = materiasSelecionadas.includes(m);
+                      return (
+                        <button
+                          type="button"
+                          key={m}
+                          onClick={() => toggleMateria(m)}
+                          className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${
+                            selecionado
+                              ? "bg-slate-900 text-white border-slate-900"
+                              : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+                          }`}
+                        >
+                          {selecionado ? "✓ " : ""}{m}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
+
+                {/* --- SELEÇÃO DE ESPORTE --- */}
                 <div className="space-y-1.5">
-                  <Label>O que colocar na mochila?</Label>
-                  <Input required placeholder="Ex: Uniforme, tênis e garrafa d'água" value={formRotina.mochila} onChange={(e) => setFormRotina({ ...formRotina, mochila: e.target.value })} />
+                  <Label>Esporte no Dia</Label>
+                  <select
+                    value={esporteSelecionado}
+                    onChange={(e) => handleEsporteChange(e.target.value)}
+                    className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+                  >
+                    <option value="Nenhum">Nenhum</option>
+                    <option value="Futsal">Futsal</option>
+                    <option value="Judô">Judô</option>
+                    <option value="Futsal + Judô">Futsal + Judô</option>
+                  </select>
                 </div>
+
+                {/* --- CAMPO GERADO AUTOMATICAMENTE --- */}
+                <div className="space-y-1.5">
+                  <Label>O que colocar na mochila? (Gerado Automaticamente)</Label>
+                  <textarea
+                    required
+                    rows={3}
+                    value={formRotina.mochila}
+                    onChange={(e) => setFormRotina({ ...formRotina, mochila: e.target.value })}
+                    className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+                    placeholder="Selecione as matérias e/ou esportes acima..."
+                  />
+                </div>
+
                 <Button type="submit" className="w-full bg-slate-900 hover:bg-slate-800" disabled={salvarRotina.isPending}>
                   {salvarRotina.isPending ? "Salvando..." : "Adicionar à Rotina"}
                 </Button>
