@@ -116,13 +116,11 @@ function DashboardLogistica() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["rotinas"] }),
   });
 
-
   // --- FILTROS DE TELA ---
   const tarefasFiltradas = aba === "Visão Geral" 
     ? tarefas.filter(t => !t.concluida && t.data_vencimento <= hojeIso)
     : tarefas.filter(t => t.aluno === aba);
 
-  // Se for sábado(6) ou domingo(0), mostramos a mochila de Segunda(1). Senão, mostramos a de hoje/amanhã.
   const diaAlvo = (diaSemanaAtual === 0 || diaSemanaAtual === 6) ? 1 : diaSemanaAtual;
   const rotinaHoje = rotinas.filter(r => r.dia_semana === diaAlvo);
   
@@ -155,7 +153,7 @@ function DashboardLogistica() {
 
       <main className="mx-auto w-full max-w-2xl px-5 py-6">
         
-        {/* --- TELA VISÃO GERAL (MOCHILA DE HOJE + TAREFAS ATRASADAS) --- */}
+        {/* --- TELA VISÃO GERAL --- */}
         {aba === "Visão Geral" && (
           <div className="mb-8">
             <h2 className="text-lg font-bold text-slate-800 mb-3">
@@ -188,7 +186,7 @@ function DashboardLogistica() {
           </div>
         )}
 
-        {/* --- TELA DE ROTINA FIXA (CADASTRO) --- */}
+        {/* --- TELA DE ROTINA FIXA --- */}
         {aba === "Rotina Fixa" ? (
           <div>
             <div className="mb-6 flex items-center justify-between">
@@ -261,7 +259,7 @@ function DashboardLogistica() {
             </div>
           </div>
         ) : (
-          /* --- TELA DE TAREFAS PONTUAIS (GERAL, PEDRO, DAVI) --- */
+          /* --- TELA DE TAREFAS PONTUAIS --- */
           <div>
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-800">
@@ -299,8 +297,24 @@ function DashboardLogistica() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Título / Matéria</Label>
-                  <Input required placeholder="Ex: Maquete de Ciências" value={formTarefa.titulo} onChange={(e) => setFormTarefa({ ...formTarefa, titulo: e.target.value })} />
+                  <Label>Matéria / Título</Label>
+                  <select
+                    required
+                    value={formTarefa.titulo}
+                    onChange={(e) => setFormTarefa({ ...formTarefa, titulo: e.target.value })}
+                    className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+                  >
+                    <option value="">Selecione a matéria...</option>
+                    <option value="Português">Português</option>
+                    <option value="Matemática">Matemática</option>
+                    <option value="Ciências">Ciências</option>
+                    <option value="História">História</option>
+                    <option value="Geografia">Geografia</option>
+                    <option value="Inglês">Inglês</option>
+                    <option value="Artes">Artes</option>
+                    <option value="Bolodim">Bolodim</option>
+                    <option value="Outros">Outros / Evento</option>
+                  </select>
                 </div>
                 
                 <div className="space-y-1.5">
