@@ -93,7 +93,7 @@ export default async function handler(req: any, res: any) {
       return res.status(200).json({ status: "ok", msg: "Sem pendências noturnas." });
     }
 
-    // 7. Despacho para o Telegram
+    // 7. Despacho para o Telegram (sem prévia do link do site)
     const saudacao = deManha ? "🌅 *Bom dia, família!*\n_Resumo operacional do dia:_\n\n" : "🌙 *Resumo da Noite!*\n_Balanço das pendências:_\n\n";
     const mensagemFinal = encodeURIComponent(saudacao + textoRotina + textoTarefas);
 
@@ -101,7 +101,7 @@ export default async function handler(req: any, res: any) {
     const chatId = process.env.TELEGRAM_CHAT_ID;
 
     if (token && chatId) {
-      const url = `https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${mensagemFinal}&parse_mode=Markdown`;
+      const url = `https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${mensagemFinal}&parse_mode=Markdown&disable_web_page_preview=true`;
       await fetch(url);
     }
 
