@@ -35,26 +35,40 @@ function DashboardLogistica() {
   const hojeIso = hojeData.toISOString().slice(0, 10);
   const diaSemanaAtual = hojeData.getDay();
 
-  const formTarefaVazio = { id: "", aluno: "Pedro", tipo: "Lição de Casa", titulo: "", detalhes: "", data_vencimento: hojeIso };
-  const formRotinaVazio = { aluno: "Pedro", dia_semana: "1", atividade: "", mochila: "" };
-  
+  const formTarefaVazio = {
+    id: "",
+    aluno: "Pedro",
+    tipo: "Lição de Casa",
+    titulo: "",
+    detalhes: "",
+    data_vencimento: hojeIso,
+  };
+
+  const formRotinaVazio = {
+    aluno: "Pedro",
+    dia_semana: "1",
+    atividade: "",
+    mochila: "",
+  };
+
   const [formTarefa, setFormTarefa] = useState(formTarefaVazio);
   const [formRotina, setFormRotina] = useState(formRotinaVazio);
 
-  // Estados locais para a seleção automatizada da Rotina
+  // Estados locais para controle interativo do formulário de Rotina
   const [materiasSelecionadas, setMateriasSelecionadas] = useState<string[]>([]);
   const [esporteSelecionado, setEsporteSelecionado] = useState<string>("Nenhum");
 
-  // --- FUNÇÃO PARA GERAR AUTOMATICAMENTE O TEXTO DA MOCHILA ---
+  // --- GERADOR AUTOMÁTICO DE TEXTO DA MOCHILA ---
   const atualizarTextoRotina = (aluno: string, materias: string[], esporte: string) => {
-    // 1. Nome da atividade
+    // 1. Resumo das Atividades
     let atvPartes = [...materias];
     if (esporte && esporte !== "Nenhum") atvPartes.push(esporte);
     const atividadeTexto = atvPartes.join(", ");
 
-    // 2. Montagem da frase da mochila
-    let frases: string[] = [];
+    // 2. Montagem dos itens de material
+    let itens: string[] = [];
 
+    // Formatação de matérias
     if (materias.length > 0) {
       let textoMat = "";
       if (materias.length === 1) {
@@ -64,32 +78,47 @@ function DashboardLogistica() {
       } else {
         textoMat = `${materias.slice(0, -1).join(", ")} e ${materias[materias.length - 1]}`;
       }
-      frases.push(`Hoje o ${aluno} tem que levar apostila de ${textoMat.toLowerCase()}.`);
+      const prefixo = materias.length > 1 ? "as apostilas de" : "a apostila de";
+      itens.push(`${prefixo} ${textoMat}`);
     }
 
+    // Formatação de esportes
     if (esporte === "Futsal") {
-      frases.push(`Hoje o ${aluno} tem futsal também, lembre-se de levar a chuteira e uniforme do futsal.`);
+      itens.push("chuteira e uniforme de futsal");
     } else if (esporte === "Judô") {
-      frases.push(`Hoje o ${aluno} tem judô também, lembre-se de levar o kimono.`);
+      itens.push("kimono de judô");
     } else if (esporte === "Futsal + Judô") {
-      frases.push(`Hoje o ${aluno} tem futsal e judô também, lembre-se de levar a chuteira, uniforme do futsal e o kimono.`);
+      itens.push("chuteira e uniforme de futsal", "kimono de judô");
     }
+
+    // 3. Conexão natural da frase
+    let textoItens = "";
+    if (itens.length === 1) {
+      textoItens = itens[0];
+    } else if (itens.length === 2) {
+      textoItens = `${itens[0]} e ${itens[1]}`;
+    } else if (itens.length > 2) {
+      textoItens = `${itens.slice(0, -1).join(", ")} e ${itens[itens.length - 1]}`;
+    }
+
+    // Frase final iniciada pelo nome do aluno
+    const fraseMochila = textoItens ? `Hoje o ${aluno} tem que levar ${textoItens}.` : "";
 
     setFormRotina((prev) => ({
       ...prev,
       aluno,
       atividade: atividadeTexto,
-      mochila: frases.join(" "),
+      mochila: fraseMochila,
     }));
   };
 
   const toggleMateria = (materia: string) => {
-    const novasmaterias = materiasSelecionadas.includes(materia)
+    const novasMaterias = materiasSelecionadas.includes(materia)
       ? materiasSelecionadas.filter((item) => item !== materia)
       : [...materiasSelecionadas, materia];
 
-    setMateriasSelecionadas(novasmaterias);
-    atualizarTextoRotina(formRotina.aluno, novasmaterias, esporteSelecionado);
+    setMateriasSelecionadas(novasMaterias);
+    atualizarTextoRotina(formRotina.aluno, novasMaterias, esporteSelecionado);
   };
 
   const handleEsporteChange = (esporte: string) => {
@@ -102,11 +131,14 @@ function DashboardLogistica() {
     atualizarTextoRotina(aluno, materiasSelecionadas, esporteSelecionado);
   };
 
-  // --- BUSCAS NO BANCO ---
+  // --- BUSCAS NO BANCO DE DADOS (SUPABASE) ---
   const { data: tarefas = [], isLoading: loadT } = useQuery({
     queryKey: ["tarefas"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("tarefas_escola").select("*").order("data_vencimento");
+      const { data, error } = await supabase
+        .from("tarefas_escola")
+        .select("*")
+        .order("data_vencimento");
       if (error) throw error;
       return data;
     },
@@ -115,13 +147,16 @@ function DashboardLogistica() {
   const { data: rotinas = [], isLoading: loadR } = useQuery({
     queryKey: ["rotinas"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("rotina_semanal").select("*").order("dia_semana");
+      const { data, error } = await supabase
+        .from("rotina_semanal")
+        .select("*")
+        .order("dia_semana");
       if (error) throw error;
       return data;
     },
   });
 
-  // --- COMANDOS DAS TAREFAS PONTUAIS ---
+  // --- MUTATIONS: TAREFAS PONTUAIS ---
   const salvarTarefa = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -137,17 +172,20 @@ function DashboardLogistica() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Tarefa registrada!");
+      toast.success("Tarefa salva com sucesso!");
       setModalTarefa(false);
       setFormTarefa(formTarefaVazio);
       queryClient.invalidateQueries({ queryKey: ["tarefas"] });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const alternarTarefa = useMutation({
     mutationFn: async ({ id, concluida }: { id: string; concluida: boolean }) => {
-      const { error } = await supabase.from("tarefas_escola").update({ concluida }).eq("id", id);
+      const { error } = await supabase
+        .from("tarefas_escola")
+        .update({ concluida })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
@@ -161,7 +199,7 @@ function DashboardLogistica() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["tarefas"] }),
   });
 
-  // --- COMANDOS DA ROTINA FIXA ---
+  // --- MUTATIONS: ROTINA FIXA ---
   const salvarRotina = useMutation({
     mutationFn: async () => {
       const payload = {
@@ -181,7 +219,7 @@ function DashboardLogistica() {
       setEsporteSelecionado("Nenhum");
       queryClient.invalidateQueries({ queryKey: ["rotinas"] });
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const excluirRotina = useMutation({
@@ -192,25 +230,38 @@ function DashboardLogistica() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["rotinas"] }),
   });
 
-  // --- FILTROS DE TELA ---
-  const tarefasFiltradas = aba === "Visão Geral" 
-    ? tarefas.filter(t => !t.concluida && t.data_vencimento <= hojeIso)
-    : tarefas.filter(t => t.aluno === aba);
+  // --- FILTROS DE VISUALIZAÇÃO ---
+  const tarefasFiltradas =
+    aba === "Visão Geral"
+      ? tarefas.filter((t) => !t.concluida && t.data_vencimento <= hojeIso)
+      : tarefas.filter((t) => t.aluno === aba);
 
-  const diaAlvo = (diaSemanaAtual === 0 || diaSemanaAtual === 6) ? 1 : diaSemanaAtual;
-  const rotinaHoje = rotinas.filter(r => r.dia_semana === diaAlvo);
-  
-  const nomeDia = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+  // Seleciona Segunda-feira se for final de semana
+  const diaAlvo = diaSemanaAtual === 0 || diaSemanaAtual === 6 ? 1 : diaSemanaAtual;
+  const rotinaHoje = rotinas.filter((r) => r.dia_semana === diaAlvo);
+
+  const nomeDia = [
+    "Domingo",
+    "Segunda-feira",
+    "Terça-feira",
+    "Quarta-feira",
+    "Quinta-feira",
+    "Sexta-feira",
+    "Sábado",
+  ];
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 font-sans">
       <header className="bg-slate-900 text-white shadow-md">
         <div className="mx-auto w-full max-w-2xl px-5 py-6">
           <h1 className="text-2xl font-bold tracking-tight">Logística Escolar</h1>
-          <p className="text-slate-400 text-sm mt-1">Gestão de Mochilas, Tarefas e Eventos</p>
+          <p className="text-slate-400 text-sm mt-1">
+            Gestão de Mochilas, Tarefas e Eventos
+          </p>
         </div>
       </header>
 
+      {/* NAVEGAÇÃO POR ABAS */}
       <nav className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur overflow-x-auto">
         <div className="mx-auto flex w-full max-w-2xl gap-2 px-3 py-2 text-sm font-medium min-w-[400px]">
           {(["Visão Geral", "Pedro", "Davi", "Rotina Fixa"] as Aba[]).map((a) => (
@@ -218,7 +269,9 @@ function DashboardLogistica() {
               key={a}
               onClick={() => setAba(a)}
               className={`whitespace-nowrap rounded-md px-3 py-2 transition-colors ${
-                aba === a ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+                aba === a
+                  ? "bg-slate-900 text-white"
+                  : "text-slate-600 hover:bg-slate-100"
               }`}
             >
               {a}
@@ -228,55 +281,81 @@ function DashboardLogistica() {
       </nav>
 
       <main className="mx-auto w-full max-w-2xl px-5 py-6">
-        
-        {/* --- TELA VISÃO GERAL --- */}
+        {/* --- TELA 1: VISÃO GERAL --- */}
         {aba === "Visão Geral" && (
           <div className="mb-8">
             <h2 className="text-lg font-bold text-slate-800 mb-3">
               Mochila de {nomeDia[diaAlvo]}
             </h2>
-            
+
             <div className="grid gap-4 md:grid-cols-2 mb-8">
-              {["Pedro", "Davi"].map(aluno => {
-                const rotinaAluno = rotinaHoje.filter(r => r.aluno === aluno);
+              {["Pedro", "Davi"].map((aluno) => {
+                const rotinaAluno = rotinaHoje.filter((r) => r.aluno === aluno);
                 return (
-                  <div key={aluno} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm border-t-4 border-t-slate-800">
-                    <h3 className="font-bold text-slate-900 mb-3 uppercase tracking-wider text-sm">{aluno}</h3>
+                  <div
+                    key={aluno}
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm border-t-4 border-t-slate-800"
+                  >
+                    <h3 className="font-bold text-slate-900 mb-3 uppercase tracking-wider text-sm">
+                      {aluno}
+                    </h3>
                     {rotinaAluno.length === 0 ? (
-                      <p className="text-sm text-slate-500">Nenhuma rotina especial hoje.</p>
+                      <p className="text-sm text-slate-500">
+                        Nenhuma rotina cadastrada para hoje.
+                      </p>
                     ) : (
                       <ul className="space-y-3">
-                        {rotinaAluno.map(r => (
+                        {rotinaAluno.map((r) => (
                           <li key={r.id} className="text-sm">
-                            <span className="font-semibold block text-slate-700">{r.atividade}:</span>
+                            <span className="font-semibold block text-slate-700">
+                              {r.atividade}:
+                            </span>
                             <span className="text-slate-600">🎒 {r.mochila}</span>
                           </li>
                         ))}
                       </ul>
                     )}
                   </div>
-                )
+                );
               })}
             </div>
             <hr className="border-slate-200 mb-6" />
           </div>
         )}
 
-        {/* --- TELA DE ROTINA FIXA --- */}
+        {/* --- TELA 2: ROTINA FIXA --- */}
         {aba === "Rotina Fixa" ? (
           <div>
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-800">Quadro de Horários</h2>
-              <Button onClick={() => setModalRotina(true)} size="sm" className="bg-slate-900 shadow-sm hover:bg-slate-800">
+              <Button
+                onClick={() => setModalRotina(true)}
+                size="sm"
+                className="bg-slate-900 shadow-sm hover:bg-slate-800"
+              >
                 + Rotina
               </Button>
             </div>
 
+            {/* MODAL DE CADASTRO DE ROTINA */}
             {modalRotina && (
-              <form className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4" onSubmit={(e) => { e.preventDefault(); salvarRotina.mutate(); }}>
+              <form
+                className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  salvarRotina.mutate();
+                }}
+              >
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-bold text-lg">Nova Rotina Fixa</h3>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setModalRotina(false)}>✕ Fechar</Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setModalRotina(false)}
+                  >
+                    ✕ Fechar
+                  </Button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -295,7 +374,9 @@ function DashboardLogistica() {
                     <Label>Dia da Semana</Label>
                     <select
                       value={formRotina.dia_semana}
-                      onChange={(e) => setFormRotina({ ...formRotina, dia_semana: e.target.value })}
+                      onChange={(e) =>
+                        setFormRotina({ ...formRotina, dia_semana: e.target.value })
+                      }
                       className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
                     >
                       <option value="1">Segunda-feira</option>
@@ -307,9 +388,9 @@ function DashboardLogistica() {
                   </div>
                 </div>
 
-                {/* --- SELEÇÃO DE MATÉRIAS --- */}
+                {/* BOTÕES DE SELEÇÃO DE MATÉRIAS */}
                 <div className="space-y-1.5">
-                  <Label>Matérias do Dia (clique para selecionar)</Label>
+                  <Label>Matérias do Dia</Label>
                   <div className="flex flex-wrap gap-1.5 pt-1">
                     {LISTA_MATERIAS.map((m) => {
                       const selecionado = materiasSelecionadas.includes(m);
@@ -324,14 +405,15 @@ function DashboardLogistica() {
                               : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
                           }`}
                         >
-                          {selecionado ? "✓ " : ""}{m}
+                          {selecionado ? "✓ " : ""}
+                          {m}
                         </button>
                       );
                     })}
                   </div>
                 </div>
 
-                {/* --- SELEÇÃO DE ESPORTE --- */}
+                {/* SELEÇÃO DE ESPORTE */}
                 <div className="space-y-1.5">
                   <Label>Esporte no Dia</Label>
                   <select
@@ -346,78 +428,141 @@ function DashboardLogistica() {
                   </select>
                 </div>
 
-                {/* --- CAMPO GERADO AUTOMATICAMENTE --- */}
+                {/* CAMPO GERADO AUTOMATICAMENTE */}
                 <div className="space-y-1.5">
-                  <Label>O que colocar na mochila? (Gerado Automaticamente)</Label>
+                  <Label>O que colocar na mochila? (Texto Automático)</Label>
                   <textarea
                     required
                     rows={3}
                     value={formRotina.mochila}
-                    onChange={(e) => setFormRotina({ ...formRotina, mochila: e.target.value })}
+                    onChange={(e) =>
+                      setFormRotina({ ...formRotina, mochila: e.target.value })
+                    }
                     className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
-                    placeholder="Selecione as matérias e/ou esportes acima..."
+                    placeholder="Selecione as matérias ou esportes acima..."
                   />
                 </div>
 
-                <Button type="submit" className="w-full bg-slate-900 hover:bg-slate-800" disabled={salvarRotina.isPending}>
+                <Button
+                  type="submit"
+                  className="w-full bg-slate-900 hover:bg-slate-800"
+                  disabled={salvarRotina.isPending}
+                >
                   {salvarRotina.isPending ? "Salvando..." : "Adicionar à Rotina"}
                 </Button>
               </form>
             )}
 
+            {/* LISTAGEM DOS DIAS DA SEMANA */}
             <div className="space-y-6">
-              {[1, 2, 3, 4, 5].map(dia => {
-                const itensDia = rotinas.filter(r => r.dia_semana === dia);
+              {[1, 2, 3, 4, 5].map((dia) => {
+                const itensDia = rotinas.filter((r) => r.dia_semana === dia);
                 if (itensDia.length === 0) return null;
                 return (
-                  <div key={dia} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <h3 className="font-bold text-slate-800 mb-3 bg-slate-100 px-3 py-1.5 rounded inline-block">{nomeDia[dia]}</h3>
+                  <div
+                    key={dia}
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                  >
+                    <h3 className="font-bold text-slate-800 mb-3 bg-slate-100 px-3 py-1.5 rounded inline-block">
+                      {nomeDia[dia]}
+                    </h3>
                     <ul className="space-y-3">
-                      {itensDia.map(r => (
-                        <li key={r.id} className="flex justify-between items-start text-sm border-b border-slate-50 pb-2 last:border-0">
+                      {itensDia.map((r) => (
+                        <li
+                          key={r.id}
+                          className="flex justify-between items-start text-sm border-b border-slate-50 pb-2 last:border-0"
+                        >
                           <div>
-                            <span className="font-semibold text-slate-700 block">{r.aluno} - {r.atividade}</span>
+                            <span className="font-semibold text-slate-700 block">
+                              {r.aluno} - {r.atividade}
+                            </span>
                             <span className="text-slate-500">Levar: {r.mochila}</span>
                           </div>
-                          <button onClick={() => { if(window.confirm("Excluir rotina?")) excluirRotina.mutate(r.id) }} className="text-red-500 hover:text-red-700 text-xs font-medium ml-2">Excluir</button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm("Deseja excluir esta rotina?"))
+                                excluirRotina.mutate(r.id);
+                            }}
+                            className="text-red-500 hover:text-red-700 text-xs font-medium ml-2"
+                          >
+                            Excluir
+                          </button>
                         </li>
                       ))}
                     </ul>
                   </div>
-                )
+                );
               })}
             </div>
           </div>
         ) : (
-          /* --- TELA DE TAREFAS PONTUAIS --- */
+          /* --- TELA 3: TAREFAS PONTUAIS (PEDRO / DAVI / VISÃO GERAL) --- */
           <div>
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-800">
-                {aba === "Visão Geral" ? "Tarefas e Eventos Pendentes" : `Demandas de ${aba}`}
+                {aba === "Visão Geral"
+                  ? "Tarefas e Eventos Pendentes"
+                  : `Demandas de ${aba}`}
               </h2>
-              <Button onClick={() => { setFormTarefa({ ...formTarefaVazio, aluno: aba === "Visão Geral" ? "Pedro" : aba as string }); setModalTarefa(true); }} size="sm" className="bg-slate-900 shadow-sm hover:bg-slate-800">
+              <Button
+                onClick={() => {
+                  setFormTarefa({
+                    ...formTarefaVazio,
+                    aluno: aba === "Visão Geral" ? "Pedro" : (aba as string),
+                  });
+                  setModalTarefa(true);
+                }}
+                size="sm"
+                className="bg-slate-900 shadow-sm hover:bg-slate-800"
+              >
                 + Tarefa
               </Button>
             </div>
 
+            {/* MODAL DE TAREFA PONTUAL */}
             {modalTarefa && (
-              <form className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4" onSubmit={(e) => { e.preventDefault(); salvarTarefa.mutate(); }}>
+              <form
+                className="mb-8 rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  salvarTarefa.mutate();
+                }}
+              >
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="font-bold text-lg">Nova Tarefa / Evento</h3>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setModalTarefa(false)}>✕ Fechar</Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setModalTarefa(false)}
+                  >
+                    ✕ Fechar
+                  </Button>
                 </div>
-                
+
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label>Aluno</Label>
-                    <select value={formTarefa.aluno} onChange={(e) => setFormTarefa({ ...formTarefa, aluno: e.target.value })} className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
+                    <select
+                      value={formTarefa.aluno}
+                      onChange={(e) =>
+                        setFormTarefa({ ...formTarefa, aluno: e.target.value })
+                      }
+                      className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+                    >
                       <option value="Pedro">Pedro</option>
                       <option value="Davi">Davi</option>
                     </select>
                   </div>
                   <div className="space-y-1.5">
                     <Label>Tipo</Label>
-                    <select value={formTarefa.tipo} onChange={(e) => setFormTarefa({ ...formTarefa, tipo: e.target.value })} className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm">
+                    <select
+                      value={formTarefa.tipo}
+                      onChange={(e) =>
+                        setFormTarefa({ ...formTarefa, tipo: e.target.value })
+                      }
+                      className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
+                    >
                       <option value="Lição de Casa">Lição de Casa</option>
                       <option value="Trabalho">Trabalho</option>
                       <option value="Prova">Prova</option>
@@ -431,7 +576,9 @@ function DashboardLogistica() {
                   <select
                     required
                     value={formTarefa.titulo}
-                    onChange={(e) => setFormTarefa({ ...formTarefa, titulo: e.target.value })}
+                    onChange={(e) =>
+                      setFormTarefa({ ...formTarefa, titulo: e.target.value })
+                    }
                     className="w-full rounded-md border border-input bg-card px-3 py-2 text-sm"
                   >
                     <option value="">Selecione a matéria...</option>
@@ -446,68 +593,123 @@ function DashboardLogistica() {
                     <option value="Outros">Outros / Evento</option>
                   </select>
                 </div>
-                
+
                 <div className="space-y-1.5">
                   <Label>Detalhes (Opcional)</Label>
-                  <Input placeholder="Materiais, páginas do livro..." value={formTarefa.detalhes} onChange={(e) => setFormTarefa({ ...formTarefa, detalhes: e.target.value })} />
+                  <Input
+                    placeholder="Materiais, páginas do livro..."
+                    value={formTarefa.detalhes}
+                    onChange={(e) =>
+                      setFormTarefa({ ...formTarefa, detalhes: e.target.value })
+                    }
+                  />
                 </div>
 
                 <div className="space-y-1.5">
                   <Label>Data de Vencimento / Evento</Label>
-                  <Input required type="date" value={formTarefa.data_vencimento} onChange={(e) => setFormTarefa({ ...formTarefa, data_vencimento: e.target.value })} />
+                  <Input
+                    required
+                    type="date"
+                    value={formTarefa.data_vencimento}
+                    onChange={(e) =>
+                      setFormTarefa({
+                        ...formTarefa,
+                        data_vencimento: e.target.value,
+                      })
+                    }
+                  />
                 </div>
 
-                <Button type="submit" className="w-full bg-slate-900 hover:bg-slate-800" disabled={salvarTarefa.isPending}>
+                <Button
+                  type="submit"
+                  className="w-full bg-slate-900 hover:bg-slate-800"
+                  disabled={salvarTarefa.isPending}
+                >
                   {salvarTarefa.isPending ? "Processando..." : "Salvar no Sistema"}
                 </Button>
               </form>
             )}
 
+            {/* LISTAGEM DAS TAREFAS */}
             {loadT || loadR ? (
-              <p className="text-sm text-slate-500">Sincronizando com o banco...</p>
+              <p className="text-sm text-slate-500">Carregando dados...</p>
             ) : tarefasFiltradas.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-500">
-                Nenhuma pendência ou evento para exibir aqui. Tudo em dia!
+                Nenhuma pendência ou evento registrado. Tudo em dia!
               </div>
             ) : (
               <div className="space-y-4">
-                {tarefasFiltradas.map(t => {
+                {tarefasFiltradas.map((t) => {
                   const atrasada = !t.concluida && t.data_vencimento < hojeIso;
                   return (
-                    <div key={t.id} className={`rounded-xl border p-4 shadow-sm transition-all flex justify-between items-start gap-3 ${t.concluida ? 'bg-slate-50 border-slate-200 opacity-60' : 'bg-white border-slate-200'}`}>
+                    <div
+                      key={t.id}
+                      className={`rounded-xl border p-4 shadow-sm transition-all flex justify-between items-start gap-3 ${
+                        t.concluida
+                          ? "bg-slate-50 border-slate-200 opacity-60"
+                          : "bg-white border-slate-200"
+                      }`}
+                    >
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          {aba === "Visão Geral" && <span className="text-xs font-bold uppercase text-slate-500">{t.aluno}</span>}
-                          <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold uppercase tracking-wider ${
-                            t.tipo === 'Prova' ? 'bg-red-100 text-red-700 border-red-200' :
-                            t.tipo === 'Trabalho' ? 'bg-purple-100 text-purple-700 border-purple-200' :
-                            t.tipo === 'Evento' ? 'bg-orange-100 text-orange-700 border-orange-200' :
-                            'bg-blue-100 text-blue-700 border-blue-200'
-                          }`}>
+                          {aba === "Visão Geral" && (
+                            <span className="text-xs font-bold uppercase text-slate-500">
+                              {t.aluno}
+                            </span>
+                          )}
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold uppercase tracking-wider ${
+                              t.tipo === "Prova"
+                                ? "bg-red-100 text-red-700 border-red-200"
+                                : t.tipo === "Trabalho"
+                                ? "bg-purple-100 text-purple-700 border-purple-200"
+                                : t.tipo === "Evento"
+                                ? "bg-orange-100 text-orange-700 border-orange-200"
+                                : "bg-blue-100 text-blue-700 border-blue-200"
+                            }`}
+                          >
                             {t.tipo}
                           </span>
                         </div>
-                        <h3 className={`font-semibold text-lg ${t.concluida ? 'line-through text-slate-500' : 'text-slate-900'}`}>{t.titulo}</h3>
-                        {t.detalhes && <p className="text-sm text-slate-600 mt-1">{t.detalhes}</p>}
-                        
+                        <h3
+                          className={`font-semibold text-lg ${
+                            t.concluida ? "line-through text-slate-500" : "text-slate-900"
+                          }`}
+                        >
+                          {t.titulo}
+                        </h3>
+                        {t.detalhes && (
+                          <p className="text-sm text-slate-600 mt-1">{t.detalhes}</p>
+                        )}
+
                         <div className="mt-3 flex items-center gap-2 text-sm">
-                          <span className={`font-medium ${atrasada ? 'text-red-600' : 'text-slate-500'}`}>
-                            Data: {t.data_vencimento.split('-').reverse().join('/')}
+                          <span
+                            className={`font-medium ${
+                              atrasada ? "text-red-600" : "text-slate-500"
+                            }`}
+                          >
+                            Data: {t.data_vencimento.split("-").reverse().join("/")}
                           </span>
                         </div>
                       </div>
-                      
+
                       <div className="flex flex-col items-end gap-3">
-                        <input 
-                          type="checkbox" 
+                        <input
+                          type="checkbox"
                           checked={t.concluida}
-                          onChange={() => alternarTarefa.mutate({ id: t.id, concluida: !t.concluida })}
+                          onChange={() =>
+                            alternarTarefa.mutate({
+                              id: t.id,
+                              concluida: !t.concluida,
+                            })
+                          }
                           className="size-6 rounded border-slate-300 accent-slate-900 cursor-pointer"
                         />
                         {aba !== "Visão Geral" && (
-                          <button 
+                          <button
                             onClick={() => {
-                              if (window.confirm("Excluir este item?")) excluirTarefa.mutate(t.id);
+                              if (window.confirm("Deseja excluir esta tarefa?"))
+                                excluirTarefa.mutate(t.id);
                             }}
                             className="text-xs text-red-500 hover:text-red-700 font-medium mt-2"
                           >
