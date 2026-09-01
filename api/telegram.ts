@@ -85,7 +85,7 @@ export default async function handler(req: any, res: any) {
       }
 
     } else {
-      textoTarefas += "✅ Nenhuma tarefa urgente!\n";
+      textoTarefas += "✅ Nenhuma tarefa pendente!\n";
     }
 
     // 6. Bloqueio para não mandar mensagem à noite se estiver tudo pronto
