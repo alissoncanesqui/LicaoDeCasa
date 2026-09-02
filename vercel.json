@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/telegram",
-      "schedule": "30 13 * * *"
+      "schedule": "30 12 * * *"
     },
     {
       "path": "/api/telegram",
